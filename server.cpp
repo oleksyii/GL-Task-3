@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+#include "utcp/utcp_header.h"
 
 #define SRC_PORT 12345
 #define DEST_PORT 54321
@@ -71,7 +72,7 @@ int main() {
     struct iphdr *ip_header = (struct iphdr *)packet;
     ip_header->ihl = 5;
     ip_header->version = 4;
-    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct udphdr) + strlen("Hello, UDP!");
+    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + strlen("Hello, UDP!");
     ip_header->id = htons(12345);
     ip_header->ttl = 64;
     ip_header->protocol = IPPROTO_UDP;
@@ -79,14 +80,14 @@ int main() {
     ip_header->daddr = dest_addr.sin_addr.s_addr;
 
     // UDP header
-    struct udphdr *udp_header = (struct udphdr *)(packet + sizeof(struct iphdr));
+    struct utcphdr *udp_header = (struct utcphdr *)(packet + sizeof(struct iphdr));
     udp_header->source = htons(SRC_PORT);
     udp_header->dest = dest_addr.sin_port;
-    udp_header->len = htons(sizeof(struct udphdr) + strlen("Hello, UDP!"));
+    udp_header->len = htons(sizeof(struct utcphdr) + strlen("Hello, UDP!"));
     udp_header->check = 0;  // Checksum calculation comes next
 
     // Data (payload)
-    char *data = packet + sizeof(struct iphdr) + sizeof(struct udphdr);
+    char *data = packet + sizeof(struct iphdr) + sizeof(struct utcphdr);
     strcpy(data, "Hello, UDP!");
 
     // Calculate UDP checksum
@@ -95,12 +96,12 @@ int main() {
     pseudo_hdr.dest_address.s_addr = dest_addr.sin_addr.s_addr;
     pseudo_hdr.placeholder = 0;
     pseudo_hdr.protocol = IPPROTO_UDP;
-    pseudo_hdr.udp_length = htons(sizeof(struct udphdr) + strlen("Hello, UDP!"));
+    pseudo_hdr.udp_length = htons(sizeof(struct utcphdr) + strlen("Hello, UDP!"));
 
-    int pseudo_length = sizeof(struct pseudo_header) + sizeof(struct udphdr) + strlen("Hello, UDP!");
+    int pseudo_length = sizeof(struct pseudo_header) + sizeof(struct utcphdr) + strlen("Hello, UDP!");
     char *pseudo_packet = (char*)malloc(pseudo_length);
     memcpy(pseudo_packet, (char *)&pseudo_hdr, sizeof(struct pseudo_header));
-    memcpy(pseudo_packet + sizeof(struct pseudo_header), udp_header, sizeof(struct udphdr) + strlen("Hello, UDP!"));
+    memcpy(pseudo_packet + sizeof(struct pseudo_header), udp_header, sizeof(struct utcphdr) + strlen("Hello, UDP!"));
 
     udp_header->check = checksum((uint16_t *)pseudo_packet, pseudo_length);
 

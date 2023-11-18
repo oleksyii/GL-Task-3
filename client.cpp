@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+#include "utcp/utcp_header.h"
 
 #define PORT 54321
 
@@ -31,10 +32,10 @@ int main() {
         // Check if it's a UDP packet
         if (ip_header->protocol == IPPROTO_UDP) {
             // Extract UDP header
-            struct udphdr *udp_header = (struct udphdr *)(buffer + sizeof(struct iphdr));
+            struct utcphdr *udp_header = (struct utcphdr *)(buffer + sizeof(struct iphdr));
 
             // Extract data (payload)
-            char *data = buffer + sizeof(struct iphdr) + sizeof(struct udphdr);
+            char *data = buffer + sizeof(struct iphdr) + sizeof(struct utcphdr);
 
             // Print received data
             printf("Received UDP packet from %s:%d to %s:%d\n",
