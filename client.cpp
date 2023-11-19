@@ -19,6 +19,10 @@ int main() {
     }
 
     while (1) {
+        //Move the whole thing to utcp_manager
+        //Here should be only receiving th char* data (payload)
+        
+         
         char buffer[65536];  // Maximum size for an IPv4 packet
         ssize_t packet_size = recv(sockfd, buffer, sizeof(buffer), 0);
         if (packet_size == -1) {
