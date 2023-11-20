@@ -1,3 +1,6 @@
+#ifndef UTCPHDR_H
+#define UTCPHDR_H
+
 #include <stdint.h>
 
 struct utcphdr {
@@ -6,3 +9,5 @@ struct utcphdr {
     uint16_t len;         // UDP packet length (header + data)
     uint16_t check;       // UDP checksum
 };
+
+#endif

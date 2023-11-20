@@ -1,59 +1,41 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <netinet/ip.h>
-#include <netinet/udp.h>
-#include "utcp/utcp_header.h"
+// #include "utcp/utcp_manager.h"
+#include "utcp/utcp_manager.h"
 
-#define PORT 54321
+
+
+// // Pseudo-header structure for UDP checksum calculation
+// struct pseudo_header {
+//     struct in_addr source_address;
+//     struct in_addr dest_address;
+//     uint8_t placeholder;
+//     uint8_t protocol;
+//     uint16_t udp_length;
+// };
+
+// // Function to calculate checksum
+// uint16_t checksum(uint16_t *ptr, int length) {
+//     int sum = 0;
+//     uint16_t oddbyte;
+//     while (length > 1) {
+//         sum += *ptr++;
+//         length -= 2;
+//     }
+//     if (length == 1) {
+//         oddbyte = 0;
+//         *((uint8_t*)&oddbyte) = *(uint8_t*)ptr;
+//         sum += oddbyte;
+//     }
+//     sum = (sum >> 16) + (sum & 0xFFFF);
+//     sum += (sum >> 16);
+//     return (uint16_t)(~sum);
+// }
 
 int main() {
-    int sockfd;
-
-    // Create a raw socket
-    if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) == -1) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
-
-    while (1) {
-        //Move the whole thing to utcp_manager
-        //Here should be only receiving th char* data (payload)
-        
-         
-        char buffer[65536];  // Maximum size for an IPv4 packet
-        ssize_t packet_size = recv(sockfd, buffer, sizeof(buffer), 0);
-        if (packet_size == -1) {
-            perror("recv");
-            exit(EXIT_FAILURE);
-        }
-
-        // Extract IP header
-        struct iphdr *ip_header = (struct iphdr *)buffer;
-
-        // Check if it's a UDP packet
-        if (ip_header->protocol == IPPROTO_UDP) {
-            // Extract UDP header
-            struct utcphdr *udp_header = (struct utcphdr *)(buffer + sizeof(struct iphdr));
-
-            // Extract data (payload)
-            char *data = buffer + sizeof(struct iphdr) + sizeof(struct utcphdr);
-
-            // Print received data
-            printf("Received UDP packet from %s:%d to %s:%d\n",
-                   inet_ntoa(*(struct in_addr *)&ip_header->saddr),
-                   ntohs(udp_header->source),
-                   inet_ntoa(*(struct in_addr *)&ip_header->daddr),
-                   ntohs(udp_header->dest));
-
-            printf("Data: %s\n", data);
-        }
-    }
-
-    // Close the socket (this part of the code is unreachable in this example)
-    close(sockfd);
+    UTCP* utcp_manager = new UTCP();
+    
+    char* data = utcp_manager->recv_utcp();
+    printf("Data: %s\n", data);
+    delete utcp_manager;
 
     return 0;
 }
