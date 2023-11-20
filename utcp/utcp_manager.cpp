@@ -8,6 +8,10 @@ char* UTCP::packetToCharArray(Packet packet)
 
     // Copy the contents of the Packet to the char* array
     std::memcpy(result, &packet, sizeof(Packet));
+    printf("packetToCharArray packet: %d %s\n", packet.sequenceNumber, packet.data);
+    Packet tmpPack;
+    std::memcpy(&tmpPack, result, sizeof(Packet));
+    printf("packetToCharArray result: %d %s\n", tmpPack.sequenceNumber, tmpPack.data);
 
     return result;
 }
@@ -16,8 +20,22 @@ char* UTCP::packetToCharArray(Packet packet)
 Packet UTCP::charArrayToPacket(const char* charArray) 
 {
     Packet result;
+    char* tmp = (char*)malloc(sizeof(charArray));
+    // std::cout << "charArray: " << charArray << std::endl;
+    printf("charArrayToPacket first char: %c last char: %c\n", charArray[0], charArray[255]);
     // Copy the contents of the char* array to the Packet
     std::memcpy(&result, charArray, sizeof(Packet));
+
+     // Convert the char array to a 16-bit unsigned integer in host byte order
+    uint16_t value;
+    std::memcpy(&value, result.data, sizeof(result.data));
+
+    // Apply ntohs to convert the value to host byte order
+    value = ntohs(value);
+    char tmpres[256];
+    std::memcpy(&tmpres, &value, sizeof(value));
+    printf("charArrayToPacket Converted ntohs: %s", tmpres );
+
     printf("from inside charArrayToPacket, the packet is: %d %s\n", result.sequenceNumber, result.data);
 
     return result;
@@ -133,6 +151,7 @@ void UTCP::send_utcp(char* input)
 void UTCP::send_utcp(Packet& inputPacket)
 {
        int sockfd;
+       char* tmp;
     
     // Create a raw socket
     if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) == -1) {
@@ -182,9 +201,13 @@ void UTCP::send_utcp(Packet& inputPacket)
 
     // Data (payload)
     char *data = packet + sizeof(struct iphdr) + sizeof(struct utcphdr);
-    char* tmp = packetToCharArray(inputPacket);
-    strcpy(data, tmp);
-    delete[] tmp;
+    tmp = packetToCharArray(inputPacket);
+    std::memcpy(data, tmp, sizeof(Packet));
+    
+
+    Packet tmpPack;
+    std::memcpy(&tmpPack, data, sizeof(Packet));
+    printf("send_utcp data: %d %s\n", tmpPack.sequenceNumber, tmpPack.data);
 
    
     // udp_header->check = checksum((uint16_t *)pseudo_packet, pseudo_length);
@@ -200,6 +223,7 @@ void UTCP::send_utcp(Packet& inputPacket)
 
     // Clean up
     close(sockfd);
+    delete[] tmp;
 }
 
 void UTCP::send_ack(int ack)
@@ -335,10 +359,10 @@ Packet UTCP::recv_utcp()
             struct utcphdr *udp_header = (struct utcphdr *)(buffer + sizeof(struct iphdr));
             if (ntohs(udp_header->dest) == PORT)
             {
-
+                std::cout << ntohs(udp_header->dest) << std::endl;
                 // Extract data (payload)
                 char *data = (char*)(buffer + sizeof(struct iphdr) + sizeof(struct utcphdr));
-                printf("from inside recv_utcp after extracting the data is: %s\n", data);   
+                // printf("from inside recv_utcp after extracting the data is: %s\n", data);   
 
                 // Verify the checksum
                 if (verify_checksum(data, sizeof(data), udp_header->check))
@@ -363,6 +387,7 @@ Packet UTCP::recv_utcp()
                        ntohs(udp_header->dest));
 
                 close(sockfd);
+                
                 return receivedPacket;
                 // printf("Data: %s\n", data);
             }
