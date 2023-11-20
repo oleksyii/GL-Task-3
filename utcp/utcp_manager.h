@@ -36,17 +36,18 @@ public:
     void send_utcp(Packet& packet);
     void send_ack(int ack);
 
-    char* recv_utcp();
+    Packet recv_utcp();
     int recv_ack();
 
     int Send(char* data);
 
-    int Recv(char* buffer);
+    int Recv(char* buffer[]);
 
 private:
     char* packetToCharArray(Packet packet);
     Packet charArrayToPacket(const char* charArray);
     std::vector<int> send_with_acknowledgement(std::vector<Packet> packets);
+    
 
 };
 

@@ -1,0 +1,19 @@
+{
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/home/oleksii/GL-Task-3",
+            "binaryPath": "/home/oleksii/GL-Task-3/server",
+            "binaryArgs": []
+        },
+        {
+            "cwd": "/home/oleksii/GL-Task-3",
+            "binaryPath": "/home/oleksii/GL-Task-3/a.out",
+            "binaryArgs": []
+        },
+        {
+            "cwd": "/home/oleksii/GL-Task-3",
+            "binaryPath": "/home/oleksii/GL-Task-3/client",
+            "binaryArgs": []
+        }
+    ]
+}

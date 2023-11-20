@@ -16,7 +16,7 @@ char* UTCP::packetToCharArray(Packet packet)
 Packet UTCP::charArrayToPacket(const char* charArray) 
 {
     Packet result;
-
+    printf("from inside charArrayToPacket, the charArray is: %s\n", charArray);
     // Copy the contents of the char* array to the Packet
     std::memcpy(&result, charArray, sizeof(Packet));
 
@@ -26,6 +26,7 @@ Packet UTCP::charArrayToPacket(const char* charArray)
 // Function to split data into packets
 std::vector<Packet> splitDataIntoPackets(const char* data, size_t dataSize, size_t maxPacketSize) {
     std::vector<Packet> packets;
+    printf("#1 splitDataIntoPackets the data passed is: %s\n", data);
 
     for (size_t i = 0; i < dataSize; i += maxPacketSize) {
         size_t packetSize = std::min(maxPacketSize, dataSize - i);
@@ -39,12 +40,21 @@ std::vector<Packet> splitDataIntoPackets(const char* data, size_t dataSize, size
         Packet pck;
         pck.sequenceNumber = i;
         strcpy(pck.data, packet);
-
         packets.push_back(pck);
+
+        printf("Packet%d : %s char*:%s\n", i, pck.data, packet);
+
+        delete[] packet;
     }
 
     return packets;
 }
+
+// Comparator function for sorting based on sequenceNumber
+static bool compareSequenceNumber(const Packet& a, const Packet& b) {
+    return a.sequenceNumber < b.sequenceNumber;
+}
+
 
 
 UTCP::UTCP() {};
@@ -149,7 +159,7 @@ void UTCP::send_utcp(Packet& inputPacket)
     }
 
     // Allocate memory for packet
-    char packet[1024];
+    char packet[40000];
     memset(packet, 0, sizeof(packet));
 
     // IP header
@@ -262,9 +272,9 @@ void UTCP::send_ack(int ack)
     close(sockfd);
 }
 
-char* UTCP::recv_utcp()
+Packet UTCP::recv_utcp()
 {
-        int sockfd;
+    int sockfd;
 
     // Create a raw socket
     if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) == -1) {
@@ -272,11 +282,44 @@ char* UTCP::recv_utcp()
         exit(EXIT_FAILURE);
     }
 
-    while (1) {
+    // Set a timeout for the socket using setsockopt
+    struct timeval timeout;
+    timeout.tv_sec = 5; // Set the timeout to 5 seconds
+    timeout.tv_usec = 1; // Set the timeout to 1 millisecond
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+    {
+        perror("setsockopt");
+        // return -1;
+        exit(EXIT_FAILURE);
+    }
 
-        char buffer[1024];  
+    while (1)
+    {
+
+        char buffer[40000];
+
+        // Use select to wait for data or timeout
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(sockfd, &read_fds);
+
+        int select_result = select(sockfd + 1, &read_fds, NULL, NULL, &timeout);
+
+        if (select_result == -1)
+        {
+            perror("select");
+            exit(EXIT_FAILURE);
+        }
+        else if (select_result == 0)
+        {
+            std::cerr << "Timeout occurred recv_utcp. No data received within the specified time." << std::endl;
+            close(sockfd);
+            return {-1, ""};
+        }
+
         ssize_t packet_size = recv(sockfd, buffer, sizeof(buffer), 0);
-        if (packet_size == -1) {
+        if (packet_size == -1)
+        {
             perror("recv");
             exit(EXIT_FAILURE);
         }
@@ -285,104 +328,131 @@ char* UTCP::recv_utcp()
         struct iphdr *ip_header = (struct iphdr *)buffer;
 
         // Check if it's a UDP packet
-        if (ip_header->protocol == IPPROTO_UDP) {
+        if (ip_header->protocol == IPPROTO_UDP)
+        {
+            // printf("\n\nThe contents of buffer received are: %s\n\n", buffer);
             // Extract UDP header
             struct utcphdr *udp_header = (struct utcphdr *)(buffer + sizeof(struct iphdr));
-            if(ntohs(udp_header->dest) == PORT)
+            if (ntohs(udp_header->dest) == PORT)
             {
 
-            // std::cout << ntohs(udp_header->dest) << std::endl;
-            // std::cout << udp_header->dest << std::endl;
+                // Extract data (payload)
+                char *data = (char*)(buffer + sizeof(struct iphdr) + sizeof(struct utcphdr));
+                printf("from inside recv_utcp after extracting the data is: %s\n", data);   
 
+                // Verify the checksum
+                if (verify_checksum(data, sizeof(data), udp_header->check))
+                {
+                    printf("Checksum is valid. Packet is not broken.\n");
+                }
+                else
+                {
+                    printf("Checksum is invalid. Packet may be broken.\n");
+                    return {-1, ""};
+                }
 
-            // Extract data (payload)
-            char* data = buffer + sizeof(struct iphdr) + sizeof(struct utcphdr);
+                Packet receivedPacket = charArrayToPacket(data);
+                printf("from inside recv_utcp, the packet is: %s\n", receivedPacket.data);
+                send_ack(receivedPacket.sequenceNumber);
 
+                // Print received data
+                printf("Received UDP packet from %s:%d to %s:%d\n",
+                       inet_ntoa(*(struct in_addr *)&ip_header->saddr),
+                       ntohs(udp_header->source),
+                       inet_ntoa(*(struct in_addr *)&ip_header->daddr),
+                       ntohs(udp_header->dest));
 
-
-            // Verify the checksum
-            if (verify_checksum(data, sizeof(data), udp_header->check)) {
-                printf("Checksum is valid. Packet is not broken.\n");
-            } else {
-                printf("Checksum is invalid. Packet may be broken.\n");
-                return nullptr;
+                close(sockfd);
+                return receivedPacket;
+                // printf("Data: %s\n", data);
             }
-
-            Packet receivedPacket = charArrayToPacket(data);
-            send_ack(receivedPacket.sequenceNumber);
-
-            // Print received data
-            printf("Received UDP packet from %s:%d to %s:%d\n",
-                   inet_ntoa(*(struct in_addr *)&ip_header->saddr),
-                   ntohs(udp_header->source),
-                   inet_ntoa(*(struct in_addr *)&ip_header->daddr),
-                   ntohs(udp_header->dest));
-
-            return data;
-            // printf("Data: %s\n", data);
-            }
-
         }
     }
-
-    // Close the socket (this part of the code is unreachable in this example)
-    close(sockfd);
 }
 
 int UTCP::recv_ack()
 {
-            int sockfd;
+    int sockfd;
 
     // Create a raw socket
-    if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) == -1) {
+    if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) == -1)
+    {
         perror("socket");
         exit(EXIT_FAILURE);
     }
+    // Set a timeout for the socket using setsockopt
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 1; // Set the timeout to 5 sec 0.001 milliseconds
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+    {
+        perror("setsockopt");
+        // return -1;
+        exit(EXIT_FAILURE);
+    }
 
-    while (1) {
-        //Move the whole thing to utcp_manager
-        //Here should be only receiving th char* data (payload)
-        
-         
-        char buffer[1024];  
-        ssize_t packet_size = recv(sockfd, buffer, sizeof(buffer), 0);
-        if (packet_size == -1) {
+    char buffer[40000];
+    ssize_t packet_size;
+
+    // Use select to wait for data or timeout
+    fd_set read_fds;
+    FD_ZERO(&read_fds);
+    FD_SET(sockfd, &read_fds);
+
+    int select_result = select(sockfd + 1, &read_fds, NULL, NULL, &timeout);
+
+    if (select_result == -1)
+    {
+        perror("select");
+        exit(EXIT_FAILURE);
+    }
+    else if (select_result == 0)
+    {
+        std::cerr << "Timeout occurred recv_ack. No data received within the specified time." << std::endl;
+        close(sockfd);
+        return -1;
+    }
+
+    while (1)
+    {
+
+        // Data is ready to be received
+        packet_size = recv(sockfd, buffer, sizeof(buffer), 0);
+        if (packet_size == -1)
+        {
             perror("recv");
             exit(EXIT_FAILURE);
         }
-
         // Extract IP header
         struct iphdr *ip_header = (struct iphdr *)buffer;
 
         // Check if it's a UDP packet
-        if (ip_header->protocol == IPPROTO_UDP) {
+        if (ip_header->protocol == IPPROTO_UDP)
+        {
             // Extract UDP header
             struct utcphdr *udp_header = (struct utcphdr *)(buffer + sizeof(struct iphdr));
-            if(ntohs(udp_header->dest) == PORT)
+            if (ntohs(udp_header->dest) == PORT)
             {
 
-            // Extract data (payload)
-            char* data = buffer + sizeof(struct iphdr) + sizeof(struct utcphdr);
+                // Extract data (payload)
+                char *data = buffer + sizeof(struct iphdr) + sizeof(struct utcphdr);
 
+                // Verify the checksum
+                if (verify_checksum(data, sizeof(data), udp_header->check))
+                {
+                    printf("Checksum is valid. Packet is not broken.\n");
+                }
+                else
+                {
+                    printf("Checksum is invalid. Packet may be broken.\n");
+                    return -1;
+                }
 
-
-            // Verify the checksum
-            if (verify_checksum(data, sizeof(data), udp_header->check)) {
-                printf("Checksum is valid. Packet is not broken.\n");
-            } else {
-                printf("Checksum is invalid. Packet may be broken.\n");
-                return -1;
+                close(sockfd);
+                return atoi(data);
             }
-
-            return atoi(data);
-
-            }
-
         }
     }
-
-    // Close the socket (this part of the code is unreachable in this example)
-    close(sockfd);
 }
 
 std::vector<int> UTCP::send_with_acknowledgement(std::vector<Packet> packets)
@@ -400,22 +470,24 @@ std::vector<int> UTCP::send_with_acknowledgement(std::vector<Packet> packets)
  * @brief Sends data using UDP but aknowledging and re-sending broken packets
  * 
  * @param data Data to be sent
- * @return size of a packet sent
+ * @return size of a data sent
  */
 int UTCP::Send(char* data)
 {
+    printf("The original data is: %s\n\n", data);
+
     // const char* originalData = "This is a sample message for packet splitting.";
     size_t dataSize = std::strlen(data);
-    size_t maxPacketSize = 256; // Set your desired maximum packet size
+    size_t maxPacketSize = 16; // Set your desired maximum packet size
 
     // Split data into packets
     std::vector<Packet> packets = splitDataIntoPackets(data, dataSize, maxPacketSize);
 
     std::vector<int> receivedACK;
-    // for( Packet packet : packets){
-    //     UTCP::send_utcp(packet);
-    //     receivedACK.push_back(UTCP::recv_ack());
-    // }
+    for( Packet packet : packets){
+        UTCP::send_utcp(packet);
+        receivedACK.push_back(UTCP::recv_ack());
+    }
     
     while(receivedACK.size() != packets.size()){
         for(Packet packet : packets){
@@ -426,20 +498,54 @@ int UTCP::Send(char* data)
         }
     }
 
-
-    // Clean up allocated memory
-    for (Packet packet : packets) {
-        delete[] packet.data;
+    int ackEnd = 0;
+    Packet end = {-1, ""};
+    while (ackEnd != -1)
+    {
+        UTCP::send_utcp(end);
+        ackEnd = UTCP::recv_ack();
     }
+
+    int res = packets.back().sequenceNumber + 16;
+
+    return res;
 }
 
 /**
  * @brief Receives data using UDP but aknowledging and re-sending broken packets
  * 
  * @param buffer Buffer to where received data will be stored 
- * @return size of a packet received 
+ * @return size of data received 
  */
-int UTCP::Recv(char* buffer)
+int UTCP::Recv(char* buffer[])
 {
+    Packet tmp = {0, ""};
+    std::vector<Packet> packets = {};
 
+    do
+    {
+        tmp = recv_utcp();
+        printf("#1 first packet received is: %s", tmp.data);
+        packets.push_back(tmp);
+    }
+    while(tmp.sequenceNumber != -1);
+
+    // Sort the vector based on sequenceNumber
+    std::sort(packets.begin(), packets.end(), compareSequenceNumber);
+
+    // Remove duplicates using std::unique
+    packets.erase(std::unique(packets.begin(), packets.end(), 
+                [](const Packet& a, const Packet& b) {
+                    return a.sequenceNumber == b.sequenceNumber;
+                }), packets.end());
+
+    std::string res;
+    for(Packet packet : packets){
+        
+        res.append(packet.data);
+    }
+    std::cout << "\nData from the inside Recv function:\n" << res << std::endl;
+    strcpy(*buffer, res.c_str());
+    return sizeof(*buffer);
 }
+

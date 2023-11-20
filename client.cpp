@@ -31,11 +31,14 @@
 // }
 
 int main() {
-    UTCP* utcp_manager = new UTCP();
+    UTCP* mgr = new UTCP();
     
-    char* data = utcp_manager->recv_utcp();
-    printf("Data: %s\n", data);
-    delete utcp_manager;
+    // char* data = utcp_manager->recv_utcp();
+    char* data = (char*)malloc(256);
+    int sizebuffer = mgr->Recv(&data);
+    printf("length: %d Data: %s\n", sizebuffer, data);
+    delete mgr;
+    free(data);
 
     return 0;
 }
