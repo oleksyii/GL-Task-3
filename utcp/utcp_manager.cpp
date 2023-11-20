@@ -16,9 +16,9 @@ char* UTCP::packetToCharArray(Packet packet)
 Packet UTCP::charArrayToPacket(const char* charArray) 
 {
     Packet result;
-    printf("from inside charArrayToPacket, the charArray is: %s\n", charArray);
     // Copy the contents of the char* array to the Packet
     std::memcpy(&result, charArray, sizeof(Packet));
+    printf("from inside charArrayToPacket, the packet is: %d %s\n", result.sequenceNumber, result.data);
 
     return result;
 }
