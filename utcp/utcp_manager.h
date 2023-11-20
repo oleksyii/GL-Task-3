@@ -12,6 +12,7 @@
 #include <netinet/udp.h>
 #include <cstring>
 #include <vector>
+#include <algorithm>
 #include "checksums.h"
 #include "utcp_header.h"
 
@@ -33,12 +34,10 @@ public:
 
     void send_utcp(char* data);
     void send_utcp(Packet& packet);
-
-    char* recv_utcp();
-
     void send_ack(int ack);
 
-    char* recv_ack();
+    char* recv_utcp();
+    int recv_ack();
 
     int Send(char* data);
 
@@ -46,8 +45,8 @@ public:
 
 private:
     char* packetToCharArray(Packet packet);
-    Packet charArrayToPacket(const char* charArray)
-    
+    Packet charArrayToPacket(const char* charArray);
+    std::vector<int> send_with_acknowledgement(std::vector<Packet> packets);
 
 };
 
