@@ -30,7 +30,9 @@ class UTCP
 {
 public:
 
-    UTCP();
+    UTCP(uint, uint);
+
+    ~UTCP();
 
     void send_utcp(char* data);
     void send_utcp(Packet& packet);
@@ -47,6 +49,17 @@ private:
     char* packetToCharArray(Packet packet);
     Packet charArrayToPacket(const char* charArray);
     std::vector<int> send_with_acknowledgement(std::vector<Packet> packets);
+
+    void initializeRawSocket();
+    void initializeRawSocketAck();
+
+    void cleanup();
+
+    int sockfd;
+    int sockfd_ack;
+
+    uint dest_port;
+    uint src_port;
     
 
 };

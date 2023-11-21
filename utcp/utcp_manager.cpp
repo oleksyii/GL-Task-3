@@ -8,10 +8,7 @@ char* UTCP::packetToCharArray(Packet packet)
 
     // Copy the contents of the Packet to the char* array
     std::memcpy(result, &packet, sizeof(Packet));
-    printf("packetToCharArray packet: %d %s\n", packet.sequenceNumber, packet.data);
-    Packet tmpPack;
-    std::memcpy(&tmpPack, result, sizeof(Packet));
-    printf("packetToCharArray result: %d %s\n", tmpPack.sequenceNumber, tmpPack.data);
+   
 
     return result;
 }
@@ -21,22 +18,10 @@ Packet UTCP::charArrayToPacket(const char* charArray)
 {
     Packet result;
     char* tmp = (char*)malloc(sizeof(charArray));
-    // std::cout << "charArray: " << charArray << std::endl;
-    printf("charArrayToPacket first char: %c last char: %c\n", charArray[0], charArray[255]);
+
     // Copy the contents of the char* array to the Packet
     std::memcpy(&result, charArray, sizeof(Packet));
 
-     // Convert the char array to a 16-bit unsigned integer in host byte order
-    uint16_t value;
-    std::memcpy(&value, result.data, sizeof(result.data));
-
-    // Apply ntohs to convert the value to host byte order
-    value = ntohs(value);
-    char tmpres[256];
-    std::memcpy(&tmpres, &value, sizeof(value));
-    printf("charArrayToPacket Converted ntohs: %s", tmpres );
-
-    printf("from inside charArrayToPacket, the packet is: %d %s\n", result.sequenceNumber, result.data);
 
     return result;
 }
@@ -73,16 +58,11 @@ static bool compareSequenceNumber(const Packet& a, const Packet& b) {
     return a.sequenceNumber < b.sequenceNumber;
 }
 
-
-
-UTCP::UTCP() {};
-
-void UTCP::send_utcp(char* input)
+void UTCP::initializeRawSocket()
 {
-    int sockfd;
-    
+
     // Create a raw socket
-    if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) == -1) {
+    if ((this->sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) == -1) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
@@ -95,11 +75,43 @@ void UTCP::send_utcp(char* input)
         exit(EXIT_FAILURE);
     }
 
+}
+
+void UTCP::initializeRawSocketAck()
+{
+    
+}
+
+void UTCP::cleanup()
+{
+    // Clean up
+    close(sockfd);
+
+}
+
+
+
+UTCP::UTCP(uint dest_port, uint src_port) 
+{
+    this->dest_port = dest_port;
+    this->src_port = src_port;
+    initializeRawSocket();
+};
+
+UTCP::~UTCP()
+{
+    cleanup();
+}
+
+void UTCP::send_utcp(char* input)
+{
+    
+    
     // Prepare destination address
     struct sockaddr_in dest_addr;
     memset(&dest_addr, 0, sizeof(dest_addr));
     dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(DEST_PORT);
+    dest_addr.sin_port = htons(dest_port);
     if (inet_pton(AF_INET, "127.0.0.1", &dest_addr.sin_addr) <= 0) {
         perror("inet_pton");
         exit(EXIT_FAILURE);
@@ -114,23 +126,23 @@ void UTCP::send_utcp(char* input)
     struct iphdr *ip_header = (struct iphdr *)packet;
     ip_header->ihl = 5;
     ip_header->version = 4;
-    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + strlen("Hello, UDP!");
-    ip_header->id = htons(12345);
+    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + sizeof(input);
+    ip_header->id = htons(src_port);
     ip_header->ttl = 64;
     ip_header->protocol = IPPROTO_UDP;
-    ip_header->saddr = inet_addr("192.168.1.2");  // Source IP address (change as needed)
+    ip_header->saddr = inet_addr("192.168.1.2");  // Source IP address 
     ip_header->daddr = dest_addr.sin_addr.s_addr;
 
     // UDP header
     struct utcphdr *udp_header = (struct utcphdr *)(packet + sizeof(struct iphdr));
-    udp_header->source = htons(SRC_PORT);
+    udp_header->source = htons(src_port);
     udp_header->dest = dest_addr.sin_port;
-    udp_header->len = htons(sizeof(struct utcphdr) + strlen("Hello, UDP!"));
+    udp_header->len = htons(sizeof(struct utcphdr) + sizeof(input));
     udp_header->check = 0;  // Checksum calculation comes next
 
     // Data (payload)
     char *data = packet + sizeof(struct iphdr) + sizeof(struct utcphdr);
-    strcpy(data, input);
+    std::memcpy(data, input, sizeof(input));
 
    
     // udp_header->check = checksum((uint16_t *)pseudo_packet, pseudo_length);
@@ -144,59 +156,43 @@ void UTCP::send_utcp(char* input)
 
     printf("Packet sent.\n");
 
-    // Clean up
-    close(sockfd);
 }
 
 void UTCP::send_utcp(Packet& inputPacket)
 {
-       int sockfd;
-       char* tmp;
-    
-    // Create a raw socket
-    if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) == -1) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
-
-    // Set socket options (if needed)
-    int one = 1;
-    const int *val = &one;
-    if (setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
+    initializeRawSocket();
+    char* tmp;
 
     // Prepare destination address
     struct sockaddr_in dest_addr;
     memset(&dest_addr, 0, sizeof(dest_addr));
     dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(DEST_PORT);
+    dest_addr.sin_port = htons(dest_port);
     if (inet_pton(AF_INET, "127.0.0.1", &dest_addr.sin_addr) <= 0) {
         perror("inet_pton");
         exit(EXIT_FAILURE);
     }
 
     // Allocate memory for packet
-    char packet[40000];
+    char packet[1024];
     memset(packet, 0, sizeof(packet));
 
     // IP header
     struct iphdr *ip_header = (struct iphdr *)packet;
     ip_header->ihl = 5;
     ip_header->version = 4;
-    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + strlen("Hello, UDP!");
-    ip_header->id = htons(12345);
+    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + sizeof(inputPacket);
+    ip_header->id = htons(src_port);
     ip_header->ttl = 64;
     ip_header->protocol = IPPROTO_UDP;
-    ip_header->saddr = inet_addr("192.168.1.2");  // Source IP address (change as needed)
+    ip_header->saddr = inet_addr("192.168.1.2");  // Source IP address 
     ip_header->daddr = dest_addr.sin_addr.s_addr;
 
     // UDP header
     struct utcphdr *udp_header = (struct utcphdr *)(packet + sizeof(struct iphdr));
-    udp_header->source = htons(SRC_PORT);
+    udp_header->source = htons(src_port);
     udp_header->dest = dest_addr.sin_port;
-    udp_header->len = htons(sizeof(struct utcphdr) + strlen("Hello, UDP!"));
+    udp_header->len = htons(sizeof(struct utcphdr) + sizeof(inputPacket));
     udp_header->check = 0;  // Checksum calculation comes next
 
     // Data (payload)
@@ -210,9 +206,8 @@ void UTCP::send_utcp(Packet& inputPacket)
     printf("send_utcp data: %d %s\n", tmpPack.sequenceNumber, tmpPack.data);
 
    
-    // udp_header->check = checksum((uint16_t *)pseudo_packet, pseudo_length);
     udp_header->check = calcculate_checksum_utcp(data, sizeof(data));
-
+    std::cout << "sending packets on socket "  << sockfd << " to port " << dest_port << std::endl;
     // Send the packet
     if (sendto(sockfd, packet, ip_header->tot_len, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) == -1) {
         perror("sendto");
@@ -222,33 +217,17 @@ void UTCP::send_utcp(Packet& inputPacket)
     printf("Packet sent.\n");
 
     // Clean up
-    close(sockfd);
     delete[] tmp;
 }
 
 void UTCP::send_ack(int ack)
 {
-        int sockfd;
-    
-    // Create a raw socket
-    if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) == -1) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
-
-    // Set socket options (if needed)
-    int one = 1;
-    const int *val = &one;
-    if (setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-
+    initializeRawSocket();
     // Prepare destination address
     struct sockaddr_in dest_addr;
     memset(&dest_addr, 0, sizeof(dest_addr));
     dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(DEST_PORT);
+    dest_addr.sin_port = htons(dest_port);
     if (inet_pton(AF_INET, "127.0.0.1", &dest_addr.sin_addr) <= 0) {
         perror("inet_pton");
         exit(EXIT_FAILURE);
@@ -262,26 +241,24 @@ void UTCP::send_ack(int ack)
     struct iphdr *ip_header = (struct iphdr *)packet;
     ip_header->ihl = 5;
     ip_header->version = 4;
-    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + strlen("Hello, UDP!");
-    ip_header->id = htons(12345);
+    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + sizeof(int);
+    ip_header->id = htons(src_port);
     ip_header->ttl = 64;
     ip_header->protocol = IPPROTO_UDP;
-    ip_header->saddr = inet_addr("192.168.1.2");  // Source IP address (change as needed)
+    ip_header->saddr = inet_addr("192.168.1.2");  // Source IP address 
     ip_header->daddr = dest_addr.sin_addr.s_addr;
 
     // UDP header
     struct utcphdr *udp_header = (struct utcphdr *)(packet + sizeof(struct iphdr));
-    udp_header->source = htons(SRC_PORT);
+    udp_header->source = htons(src_port);
     udp_header->dest = dest_addr.sin_port;
-    udp_header->len = htons(sizeof(struct utcphdr) + strlen("Hello, UDP!"));
+    udp_header->len = htons(sizeof(struct utcphdr) + sizeof(int));
     udp_header->check = 0;  // Checksum calculation comes next
 
     // Data (payload)
     char *data = packet + sizeof(struct iphdr) + sizeof(struct utcphdr);
     strcpy(data, std::to_string(ack).c_str());
 
-   
-    // udp_header->check = checksum((uint16_t *)pseudo_packet, pseudo_length);
     udp_header->check = calcculate_checksum_utcp(data, sizeof(data));
 
     // Send the packet
@@ -292,19 +269,11 @@ void UTCP::send_ack(int ack)
 
     printf("ACK packet %d is sent.\n", ack);
 
-    // Clean up
-    close(sockfd);
 }
 
 Packet UTCP::recv_utcp()
 {
-    int sockfd;
-
-    // Create a raw socket
-    if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) == -1) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
+    initializeRawSocket();
 
     // // Set a timeout for the socket using setsockopt
     // struct timeval timeout;
@@ -319,8 +288,7 @@ Packet UTCP::recv_utcp()
 
     while (1)
     {
-
-        char buffer[40000];
+        char buffer[1024];
 
         // // Use select to wait for data or timeout
         // fd_set read_fds;
@@ -340,7 +308,7 @@ Packet UTCP::recv_utcp()
         //     close(sockfd);
         //     return {-1, ""};
         // }
-
+        std::cout << "waiting for packets on socket "  << sockfd << " on port " << src_port << std::endl;
         ssize_t packet_size = recv(sockfd, buffer, sizeof(buffer), 0);
         if (packet_size == -1)
         {
@@ -356,7 +324,7 @@ Packet UTCP::recv_utcp()
         {
             // Extract UDP header
             struct utcphdr *udp_header = (struct utcphdr *)(buffer + sizeof(struct iphdr));
-            if (ntohs(udp_header->dest) == PORT)
+            if (ntohs(udp_header->dest) == src_port)
             {
                 
                 // Extract data (payload)
@@ -396,14 +364,7 @@ Packet UTCP::recv_utcp()
 
 int UTCP::recv_ack()
 {
-    int sockfd;
 
-    // Create a raw socket
-    if ((sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP)) == -1)
-    {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
     // Set a timeout for the socket using setsockopt
     struct timeval timeout;
     timeout.tv_sec = 0;
@@ -415,7 +376,7 @@ int UTCP::recv_ack()
         exit(EXIT_FAILURE);
     }
 
-    char buffer[40000];
+    char buffer[1024];
     ssize_t packet_size;
 
     // Use select to wait for data or timeout
@@ -455,7 +416,7 @@ int UTCP::recv_ack()
         {
             // Extract UDP header
             struct utcphdr *udp_header = (struct utcphdr *)(buffer + sizeof(struct iphdr));
-            if (ntohs(udp_header->dest) == PORT)
+            if (ntohs(udp_header->dest) == src_port)
             {
 
                 // Extract data (payload)
@@ -471,8 +432,7 @@ int UTCP::recv_ack()
                     printf("Checksum is invalid. Packet may be broken.\n");
                     return -1;
                 }
-
-                close(sockfd);
+                std::cout << "received ack packet " << atoi(data) << std::endl; 
                 return atoi(data);
             }
         }
@@ -489,6 +449,8 @@ std::vector<int> UTCP::send_with_acknowledgement(std::vector<Packet> packets)
 
     return receivedACK;
 }
+
+
 
 /**
  * @brief Sends data using UDP but aknowledging and re-sending broken packets
@@ -573,7 +535,7 @@ int UTCP::Recv(char* buffer[])
         
         res.append(packet.data);
     }
-    std::cout << "\nData from the inside Recv function:\n" << res << std::endl;
+    // std::cout << "\nData from the inside Recv function:\n" << res << std::endl;
     strcpy(*buffer, res.c_str());
     return sizeof(*buffer);
 }
