@@ -1,8 +1,12 @@
 # GL-Task-3
 
+## Hello!
+To run the app, download or clone the repoand in terminal run "make". Then type "<b>sudo ./client</b>". After that open another terminal and run  "<b>sudo ./server</b>". Don't forget the <b>sudo</b> since apps use raw sockets.
+
+## Requirements
+
 GL С/C++ BaseCamp 3rd task.
 
-Requirements:
 - Use Linux for implementation. (or virtual machine with Linux)
 - Use GCC for compilation.
 - Use C/C++ for implementation.
@@ -10,7 +14,7 @@ Requirements:
 - Use Make file for build/link/clean instructions.
 - Things to google: "RAW socket"
 
-4. Implement your own TCP-like protocol on top of UDP protocol.
+1. Implement your own TCP-like protocol on top of UDP protocol.
 - Application should use RAW sockets for implementation.
 - Protocol should have it's own defined header that will be used for each packet.
 - Broken packets should be re-sent.

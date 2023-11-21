@@ -12,3 +12,4 @@ utcp/checksums.o: utcp/checksums.cpp utcp/checksums.h
 
 clean:
 	rm utcp/*.o
+	rm *.o
