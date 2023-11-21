@@ -114,7 +114,7 @@ void UTCP::send_utcp(char* input)
     struct iphdr *ip_header = (struct iphdr *)packet;
     ip_header->ihl = 5;
     ip_header->version = 4;
-    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + strlen("Hello, UDP!");
+    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + sizeof(input);
     ip_header->id = htons(12345);
     ip_header->ttl = 64;
     ip_header->protocol = IPPROTO_UDP;
@@ -125,7 +125,7 @@ void UTCP::send_utcp(char* input)
     struct utcphdr *udp_header = (struct utcphdr *)(packet + sizeof(struct iphdr));
     udp_header->source = htons(SRC_PORT);
     udp_header->dest = dest_addr.sin_port;
-    udp_header->len = htons(sizeof(struct utcphdr) + strlen("Hello, UDP!"));
+    udp_header->len = htons(sizeof(struct utcphdr) + sizeof(input));
     udp_header->check = 0;  // Checksum calculation comes next
 
     // Data (payload)
@@ -185,7 +185,7 @@ void UTCP::send_utcp(Packet& inputPacket)
     struct iphdr *ip_header = (struct iphdr *)packet;
     ip_header->ihl = 5;
     ip_header->version = 4;
-    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + strlen("Hello, UDP!");
+    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + sizeof(inputPacket);
     ip_header->id = htons(12345);
     ip_header->ttl = 64;
     ip_header->protocol = IPPROTO_UDP;
@@ -196,7 +196,7 @@ void UTCP::send_utcp(Packet& inputPacket)
     struct utcphdr *udp_header = (struct utcphdr *)(packet + sizeof(struct iphdr));
     udp_header->source = htons(SRC_PORT);
     udp_header->dest = dest_addr.sin_port;
-    udp_header->len = htons(sizeof(struct utcphdr) + strlen("Hello, UDP!"));
+    udp_header->len = htons(sizeof(struct utcphdr) + sizeof(inputPacket));
     udp_header->check = 0;  // Checksum calculation comes next
 
     // Data (payload)
@@ -262,7 +262,7 @@ void UTCP::send_ack(int ack)
     struct iphdr *ip_header = (struct iphdr *)packet;
     ip_header->ihl = 5;
     ip_header->version = 4;
-    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + strlen("Hello, UDP!");
+    ip_header->tot_len = sizeof(struct iphdr) + sizeof(struct utcphdr) + sizeof(int);
     ip_header->id = htons(12345);
     ip_header->ttl = 64;
     ip_header->protocol = IPPROTO_UDP;
@@ -273,12 +273,12 @@ void UTCP::send_ack(int ack)
     struct utcphdr *udp_header = (struct utcphdr *)(packet + sizeof(struct iphdr));
     udp_header->source = htons(SRC_PORT);
     udp_header->dest = dest_addr.sin_port;
-    udp_header->len = htons(sizeof(struct utcphdr) + strlen("Hello, UDP!"));
+    udp_header->len = htons(sizeof(struct utcphdr) + sizeof(ack));
     udp_header->check = 0;  // Checksum calculation comes next
 
     // Data (payload)
     char *data = packet + sizeof(struct iphdr) + sizeof(struct utcphdr);
-    strcpy(data, std::to_string(ack).c_str());
+    std::memcpy(data, &ack, sizeof(ack));
 
    
     // udp_header->check = checksum((uint16_t *)pseudo_packet, pseudo_length);
@@ -527,13 +527,13 @@ int UTCP::Send(char* data)
         }
     }
 
-    int ackEnd = 0;
-    Packet end = {-1, ""};
-    while (ackEnd != -1)
-    {
-        UTCP::send_utcp(end);
-        ackEnd = UTCP::recv_ack();
-    }
+    // int ackEnd = 0;
+    // Packet end = {-1, ""};
+    // while (ackEnd != -1)
+    // {
+    //     UTCP::send_utcp(end);
+    //     ackEnd = UTCP::recv_ack();
+    // }
 
     int res = packets.back().sequenceNumber + 7;
 
