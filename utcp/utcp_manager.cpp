@@ -306,40 +306,40 @@ Packet UTCP::recv_utcp()
         exit(EXIT_FAILURE);
     }
 
-    // Set a timeout for the socket using setsockopt
-    struct timeval timeout;
-    timeout.tv_sec = 5; // Set the timeout to 5 seconds
-    timeout.tv_usec = 1; // Set the timeout to 1 millisecond
-    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
-    {
-        perror("setsockopt");
-        // return -1;
-        exit(EXIT_FAILURE);
-    }
+    // // Set a timeout for the socket using setsockopt
+    // struct timeval timeout;
+    // timeout.tv_sec = 5; // Set the timeout to 5 seconds
+    // timeout.tv_usec = 1; // Set the timeout to 1 millisecond
+    // if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+    // {
+    //     perror("setsockopt");
+    //     // return -1;
+    //     exit(EXIT_FAILURE);
+    // }
 
     while (1)
     {
 
         char buffer[40000];
 
-        // Use select to wait for data or timeout
-        fd_set read_fds;
-        FD_ZERO(&read_fds);
-        FD_SET(sockfd, &read_fds);
+        // // Use select to wait for data or timeout
+        // fd_set read_fds;
+        // FD_ZERO(&read_fds);
+        // FD_SET(sockfd, &read_fds);
 
-        int select_result = select(sockfd + 1, &read_fds, NULL, NULL, &timeout);
+        // int select_result = select(sockfd + 1, &read_fds, NULL, NULL, &timeout);
 
-        if (select_result == -1)
-        {
-            perror("select");
-            exit(EXIT_FAILURE);
-        }
-        else if (select_result == 0)
-        {
-            std::cerr << "Timeout occurred recv_utcp. No data received within the specified time." << std::endl;
-            close(sockfd);
-            return {-1, ""};
-        }
+        // if (select_result == -1)
+        // {
+        //     perror("select");
+        //     exit(EXIT_FAILURE);
+        // }
+        // else if (select_result == 0)
+        // {
+        //     std::cerr << "Timeout occurred recv_utcp. No data received within the specified time." << std::endl;
+        //     close(sockfd);
+        //     return {-1, ""};
+        // }
 
         ssize_t packet_size = recv(sockfd, buffer, sizeof(buffer), 0);
         if (packet_size == -1)
@@ -354,12 +354,11 @@ Packet UTCP::recv_utcp()
         // Check if it's a UDP packet
         if (ip_header->protocol == IPPROTO_UDP)
         {
-            // printf("\n\nThe contents of buffer received are: %s\n\n", buffer);
             // Extract UDP header
             struct utcphdr *udp_header = (struct utcphdr *)(buffer + sizeof(struct iphdr));
             if (ntohs(udp_header->dest) == PORT)
             {
-                std::cout << ntohs(udp_header->dest) << std::endl;
+                
                 // Extract data (payload)
                 char *data = (char*)(buffer + sizeof(struct iphdr) + sizeof(struct utcphdr));
                 // printf("from inside recv_utcp after extracting the data is: %s\n", data);   
@@ -376,7 +375,7 @@ Packet UTCP::recv_utcp()
                 }
 
                 Packet receivedPacket = charArrayToPacket(data);
-                printf("from inside recv_utcp, the packet is: %s\n", receivedPacket.data);
+                printf("from inside recv_utcp, the packet is: %d %s\n",receivedPacket.sequenceNumber, receivedPacket.data);
                 send_ack(receivedPacket.sequenceNumber);
 
                 // Print received data
@@ -407,8 +406,8 @@ int UTCP::recv_ack()
     }
     // Set a timeout for the socket using setsockopt
     struct timeval timeout;
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 1; // Set the timeout to 5 sec 0.001 milliseconds
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 300000; // Set the timeout to 0 sec 300 milliseconds
     if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
     {
         perror("setsockopt");
@@ -433,7 +432,7 @@ int UTCP::recv_ack()
     }
     else if (select_result == 0)
     {
-        std::cerr << "Timeout occurred recv_ack. No data received within the specified time." << std::endl;
+        std::cerr << "Timeout occurred recv_ack. No acknowledgement received within the specified time." << std::endl;
         close(sockfd);
         return -1;
     }
@@ -503,7 +502,7 @@ int UTCP::Send(char* data)
 
     // const char* originalData = "This is a sample message for packet splitting.";
     size_t dataSize = std::strlen(data);
-    size_t maxPacketSize = 16; // Set your desired maximum packet size
+    size_t maxPacketSize = 7; // Set your desired maximum packet size
 
     // Split data into packets
     std::vector<Packet> packets = splitDataIntoPackets(data, dataSize, maxPacketSize);
@@ -512,6 +511,11 @@ int UTCP::Send(char* data)
     for( Packet packet : packets){
         UTCP::send_utcp(packet);
         receivedACK.push_back(UTCP::recv_ack());
+    }
+
+    std::cout << "ackowledgement nums: " << std::endl;
+    for(int ack : receivedACK){
+        std::cout << ack << std::endl;
     }
     
     while(receivedACK.size() != packets.size()){
@@ -531,7 +535,7 @@ int UTCP::Send(char* data)
         ackEnd = UTCP::recv_ack();
     }
 
-    int res = packets.back().sequenceNumber + 16;
+    int res = packets.back().sequenceNumber + 7;
 
     return res;
 }
@@ -550,7 +554,7 @@ int UTCP::Recv(char* buffer[])
     do
     {
         tmp = recv_utcp();
-        printf("#1 first packet received is: %s", tmp.data);
+        printf("#1 packet received is: %s", tmp.data);
         packets.push_back(tmp);
     }
     while(tmp.sequenceNumber != -1);
