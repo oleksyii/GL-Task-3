@@ -1,4 +1,4 @@
-// utcp_header.h
+// utcp_manager.h
 #ifndef UTCP_MANAGER_H
 #define UTCP_MANAGER_H
 
@@ -32,6 +32,12 @@ public:
 
     UTCP();
 
+    int Send(char* data);
+
+    int Recv(char* buffer[]);
+
+private:
+
     void send_utcp(char* data);
     void send_utcp(Packet& packet);
     void send_ack(int ack);
@@ -39,11 +45,6 @@ public:
     Packet recv_utcp();
     int recv_ack();
 
-    int Send(char* data);
-
-    int Recv(char* buffer[]);
-
-private:
     char* packetToCharArray(Packet packet);
     Packet charArrayToPacket(const char* charArray);
     std::vector<int> send_with_acknowledgement(std::vector<Packet> packets);

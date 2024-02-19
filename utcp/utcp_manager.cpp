@@ -222,7 +222,7 @@ void UTCP::send_ack(int ack)
         exit(EXIT_FAILURE);
     }
 
-    // Set socket options (if needed)
+    // Set socket options
     int one = 1;
     const int *val = &one;
     if (setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0) {
@@ -457,7 +457,7 @@ int UTCP::Send(char* data)
 
     // const char* originalData = "This is a sample message for packet splitting.";
     size_t dataSize = std::strlen(data);
-    size_t maxPacketSize = 7; // Set your desired maximum packet size
+    size_t maxPacketSize = 14; // Set your desired maximum packet size
 
     // Split data into packets
     std::vector<Packet> packets = splitDataIntoPackets(data, dataSize, maxPacketSize);
